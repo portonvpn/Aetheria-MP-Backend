@@ -1,55 +1,45 @@
 const express = require('express');
-const path = require('path');
 const http = require('http'); 
 const socketIO = require('socket.io');
 
 const PORT = process.env.PORT || 5050;
-
-///////////
-///  APP SETUP
-///////////
-
 const app = express();
 const server = http.createServer(app); 
-// We attach Socket.io to the "server", not the "app"
-const io = socketIO(server); 
 
-app.use(express.static('public'));
-
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname + '/public/index.html'));
+const io = socketIO(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+    credentials: true
+  }
 });
 
-//////////////////
-///  SOCKET.IO LOGIC
-//////////////////
+// Extra safety for CORS
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
+
+app.get('/', (req, res) => {
+    res.send("Server is running!");
+});
 
 io.on('connection', (client) => {
-
     client.on('playerInfo', (message) => {
-
-        // Join the room
         client.join(message.pass);
-
         client.roomId = message.pass;
         client.gameId = message.id;
-
-        // Broadcast player position to others in the same room
         client.broadcast.to(message.pass).emit('playerInfo', message);
     });
 
     client.on('disconnect', () => {
-        // Broadcast disconnection to the room
         if (client.roomId) {
             client.broadcast.to(client.roomId).emit('playerLeft', client.gameId);
         }
     });
-
 });
-
-///////////
-///  START SERVER
-///////////
 
 server.listen(PORT, () => {
     console.log('App listening on port ' + PORT);
